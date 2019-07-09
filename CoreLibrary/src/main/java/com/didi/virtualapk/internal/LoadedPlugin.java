@@ -150,6 +150,7 @@ public final class LoadedPlugin {
         this.mPluginManager = pluginManager;
         this.mHostContext = context;
         this.mLocation = apk.getAbsolutePath();
+        //解析Apk
         this.mPackage = PackageParserCompat.parsePackage(context, apk, PackageParser.PARSE_MUST_BE_APK);
         this.mPackage.applicationInfo.metaData = this.mPackage.mAppMetaData;
         this.mPackageInfo = new PackageInfo();

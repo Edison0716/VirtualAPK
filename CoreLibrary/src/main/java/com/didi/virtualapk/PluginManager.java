@@ -147,6 +147,7 @@ public class PluginManager {
         try {
             Singleton<IActivityManager> defaultSingleton;
 
+            //对Android 8.0区分
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 defaultSingleton = (Singleton<IActivityManager>) ReflectUtil
                         .getField(ActivityManager.class, null, "IActivityManagerSingleton");
@@ -154,6 +155,7 @@ public class PluginManager {
                 defaultSingleton = (Singleton<IActivityManager>) ReflectUtil
                         .getField(ActivityManagerNative.class, null, "gDefault");
             }
+            //动态代理修改数据
             IActivityManager activityManagerProxy = ActivityManagerProxy.newInstance(this, defaultSingleton.get());
 
             // Hook IActivityManager from ActivityManagerNative
@@ -176,13 +178,13 @@ public class PluginManager {
                 // reject executing in paralell space, for example, lbe.
                 System.exit(0);
             }
-
             //创建一个新的Instrumentation对象
             final VAInstrumentation instrumentation = new VAInstrumentation(this, baseInstrumentation);
             //反射拿到原始的ActivityThread对象
             Object activityThread = ReflectUtil.getActivityThread(this.mContext);
             //将原始的通过原始的ActivityThread对象拿到的Instrumentation变量替换成我们自己定义的新的VAInstrumentation对象
             ReflectUtil.setInstrumentation(activityThread, instrumentation);
+            //反射处理下HandlerCallback 将instrumentation对象赋值给Handler中的mCallback对象
             ReflectUtil.setHandlerCallback(this.mContext, instrumentation);
             this.mInstrumentation = instrumentation;
         } catch (Exception e) {
@@ -190,13 +192,17 @@ public class PluginManager {
         }
     }
 
+    //hook ContentProvider
     private void hookIContentProviderAsNeeded() {
         Uri uri = Uri.parse(PluginContentResolver.getUri(mContext));
         mContext.getContentResolver().call(uri, "wakeup", null, null);
         try {
             Field authority = null;
             Field mProvider = null;
+            //同样获取ActivityThread
             ActivityThread activityThread = (ActivityThread) ReflectUtil.getActivityThread(mContext);
+            //拿到ActivityThread中的 final ArrayMap<ProviderKey, ProviderClientRecord> mProviderMap = new
+            // ArrayMap<ProviderKey, ProviderClientRecord>();
             Map mProviderMap = (Map) ReflectUtil.getField(activityThread.getClass(), activityThread, "mProviderMap");
             Iterator iter = mProviderMap.entrySet().iterator();
             while (iter.hasNext()) {
@@ -219,6 +225,7 @@ public class PluginManager {
                         mProvider.setAccessible(true);
                     }
                     IContentProvider rawProvider = (IContentProvider) mProvider.get(val);
+                    //ContentProvider的动态代理类
                     IContentProvider proxy = IContentProviderProxy.newInstance(mContext, rawProvider);
                     mIContentProvider = proxy;
                     Log.d(TAG, "hookIContentProvider succeed : " + mIContentProvider);
@@ -235,6 +242,7 @@ public class PluginManager {
      * @param apk the file of plugin, should end with .apk
      * @throws Exception
      */
+    //加载插件
     public void loadPlugin(File apk) throws Exception {
         if (null == apk) {
             throw new IllegalArgumentException("error : apk is null.");
@@ -278,6 +286,7 @@ public class PluginManager {
         return list;
     }
 
+    //获取宿主上下文
     public Context getHostContext() {
         return this.mContext;
     }
