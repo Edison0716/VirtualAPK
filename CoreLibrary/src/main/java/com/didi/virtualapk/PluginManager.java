@@ -75,27 +75,32 @@ public class PluginManager {
     public static PluginManager getInstance(Context base) {
         if (sInstance == null) {
             synchronized (PluginManager.class) {
-                if (sInstance == null)
+                if (sInstance == null) {
                     sInstance = new PluginManager(base);
+                }
             }
         }
 
         return sInstance;
     }
 
+    //App初始化 传入应用级别Context
     private PluginManager(Context context) {
         Context app = context.getApplicationContext();
         if (app == null) {
             this.mContext = context;
         } else {
-            this.mContext = ((Application)app).getBaseContext();
+            this.mContext = ((Application) app).getBaseContext();
         }
         prepare();
     }
 
     private void prepare() {
+        //存一份上下文信息
         Systems.sHostContext = getHostContext();
+        //通过反射拿到Instrumentation and Handler 对象 并对其进行Hook处理
         this.hookInstrumentationAndHandler();
+        //通过反射拿到AMS对象 并对其进行Hook处理
         this.hookSystemServices();
         hookDataBindingUtil();
     }
@@ -112,21 +117,20 @@ public class PluginManager {
 
     private void doInWorkThread() {
     }
-    
+
     private void hookDataBindingUtil() {
         try {
             Class cls = Class.forName("android.databinding.DataBindingUtil");
             Object old = ReflectUtil.getField(cls, null, "sMapper");
             Callback callback = new DataBinderMapperProxy(old);
             ReflectUtil.setField(cls, null, "sMapper", callback);
-            
+
             addCallback(callback);
-    
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
-    
+
     public void addCallback(Callback callback) {
         if (callback == null) {
             return;
@@ -142,16 +146,19 @@ public class PluginManager {
     private void hookSystemServices() {
         try {
             Singleton<IActivityManager> defaultSingleton;
-    
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                defaultSingleton = (Singleton<IActivityManager>) ReflectUtil.getField(ActivityManager.class, null, "IActivityManagerSingleton");
+                defaultSingleton = (Singleton<IActivityManager>) ReflectUtil
+                        .getField(ActivityManager.class, null, "IActivityManagerSingleton");
             } else {
-                defaultSingleton = (Singleton<IActivityManager>) ReflectUtil.getField(ActivityManagerNative.class, null, "gDefault");
+                defaultSingleton = (Singleton<IActivityManager>) ReflectUtil
+                        .getField(ActivityManagerNative.class, null, "gDefault");
             }
             IActivityManager activityManagerProxy = ActivityManagerProxy.newInstance(this, defaultSingleton.get());
 
             // Hook IActivityManager from ActivityManagerNative
-            ReflectUtil.setField(defaultSingleton.getClass().getSuperclass(), defaultSingleton, "mInstance", activityManagerProxy);
+            ReflectUtil.setField(defaultSingleton.getClass().getSuperclass(), defaultSingleton, "mInstance",
+                    activityManagerProxy);
 
             if (defaultSingleton.get() == activityManagerProxy) {
                 this.mActivityManager = activityManagerProxy;
@@ -163,14 +170,18 @@ public class PluginManager {
 
     private void hookInstrumentationAndHandler() {
         try {
+            //通过反射拿到 原始Instrumentation 对象
             Instrumentation baseInstrumentation = ReflectUtil.getInstrumentation(this.mContext);
             if (baseInstrumentation.getClass().getName().contains("lbe")) {
                 // reject executing in paralell space, for example, lbe.
                 System.exit(0);
             }
 
+            //创建一个新的Instrumentation对象
             final VAInstrumentation instrumentation = new VAInstrumentation(this, baseInstrumentation);
+            //反射拿到原始的ActivityThread对象
             Object activityThread = ReflectUtil.getActivityThread(this.mContext);
+            //将原始的通过原始的ActivityThread对象拿到的Instrumentation变量替换成我们自己定义的新的VAInstrumentation对象
             ReflectUtil.setInstrumentation(activityThread, instrumentation);
             ReflectUtil.setHandlerCallback(this.mContext, instrumentation);
             this.mInstrumentation = instrumentation;
@@ -244,7 +255,7 @@ public class PluginManager {
             // try to invoke plugin's application
             plugin.invokeApplication();
         } else {
-            throw  new RuntimeException("Can't load plugin which is invalid: " + apk.getAbsolutePath());
+            throw new RuntimeException("Can't load plugin which is invalid: " + apk.getAbsolutePath());
         }
     }
 
@@ -380,6 +391,7 @@ public class PluginManager {
     }
 
     public interface Callback {
+
         void onAddedLoadedPlugin(LoadedPlugin plugin);
     }
 }

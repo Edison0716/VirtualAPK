@@ -108,9 +108,11 @@ public class ReflectUtil {
     public static Object getActivityThread(Context base) {
         if (sActivityThread == null) {
             try {
+                //直接通过反射拿到ActivityThread
                 Class<?> activityThreadClazz = Class.forName("android.app.ActivityThread");
                 Object activityThread = null;
                 try {
+                    //拿到ActivityThread中的sCurrentActivityThread变量
                     activityThread = ReflectUtil.getField(activityThreadClazz, null, "sCurrentActivityThread");
                 } catch (Exception e) {
                     // ignored
